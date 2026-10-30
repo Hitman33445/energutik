@@ -70,6 +70,9 @@ input:focus{border-color:var(--mango)}
 .ghost{color:#fff;background:transparent;border:2px solid var(--glass-b);justify-self:start}
 .ghost.arm{background:#ff4d5e;border-color:#ff4d5e}
 .ghost:disabled{opacity:.4;cursor:not-allowed}
+.share{color:#3a1d00;background:linear-gradient(135deg,var(--mango),var(--orange));justify-self:start;border:1px solid rgba(255,255,255,.5)}
+.share:disabled{opacity:.4;cursor:not-allowed}
+.share:active{transform:translateY(1px)}
 
 .stats{width:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.75rem;margin-bottom:1.5rem}
 .st{padding:.95rem 1rem;border-radius:18px;display:grid;gap:.2rem;text-align:left}
@@ -127,6 +130,7 @@ h2{width:100%;text-align:left;font:700 1.6rem var(--disp);margin:1rem 0 .8rem;le
       <button class="btn go" id="set" type="button">Начать отсчёт</button>
     </div>
     <button class="btn ghost" id="fail" type="button" disabled>Был срыв — начать заново</button>
+    <button class="btn share" id="share" type="button" disabled>📸 Поделиться достижением</button>
   </section>
 
   <section class="stats">
@@ -246,6 +250,7 @@ h2{width:100%;text-align:left;font:700 1.6rem var(--disp);margin:1rem 0 .8rem;le
     txt('msg', tmp || (S.start ? [...MSG].reverse().find(m => d >= m[0])[1] : 'Укажи время последней банки и нажми «Начать отсчёт».'));
     txt('set', S.start ? 'Сохранить дату' : 'Начать отсчёт');
     $('fail').disabled = !S.start;
+    $('share').disabled = !S.start;
   }
 
   function disarm() { const b = $('fail'); b.classList.remove('arm'); b.textContent = 'Был срыв — начать заново'; clearTimeout(armT); }
@@ -277,6 +282,90 @@ h2{width:100%;text-align:left;font:700 1.6rem var(--disp);margin:1rem 0 .8rem;le
     chime();
     can.classList.remove('hit'); void can.offsetWidth; can.classList.add('hit');
   };
+
+  // ---------- Картинка для сторис / чата ----------
+  const toBlobP = c => new Promise((res, rej) => { try { c.toBlob(b => b ? res(b) : rej(new Error('blob')), 'image/png'); } catch(e) { rej(e); } });
+
+  function drawCard(c, withCan) {
+    const W = 1080, H = 1920, x = c.getContext('2d');
+    const diff = S.start ? Math.max(0, Date.now() - S.start) : 0, d = Math.floor(diff / DAY), hrs = Math.floor(diff / 36e5);
+    const big = d > 0 ? d : hrs;
+    const unit = d > 0 ? plural(d, ['день','дня','дней']) : plural(hrs, ['час','часа','часов']);
+    const F = 'Oswald,"Arial Narrow",Impact,sans-serif', B = 'Nunito,system-ui,sans-serif';
+    x.clearRect(0, 0, W, H);
+
+    let g = x.createRadialGradient(W / 2, 0, 80, W / 2, H * .3, H);
+    g.addColorStop(0, '#1f7cff'); g.addColorStop(.55, '#0c40b3'); g.addColorStop(1, '#07297c');
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+
+    x.save(); x.translate(W / 2, 1150);
+    for (let i = 0; i < 22; i++) { x.rotate(Math.PI * 2 / 22); x.beginPath(); x.moveTo(0, 0); x.arc(0, 0, 1500, -.11, .11); x.closePath(); x.fillStyle = 'rgba(255,205,60,.14)'; x.fill(); }
+    x.restore();
+
+    g = x.createRadialGradient(W / 2, 1150, 40, W / 2, 1150, 560);
+    g.addColorStop(0, 'rgba(255,157,28,.65)'); g.addColorStop(1, 'rgba(255,157,28,0)');
+    x.fillStyle = g; x.fillRect(0, 500, W, 1300);
+
+    for (let i = 0; i < 28; i++) {
+      const px = (i * 397) % W, py = (i * 613) % H, r = 8 + (i * 7) % 26;
+      const bg = x.createRadialGradient(px - r / 3, py - r / 3, 1, px, py, r);
+      bg.addColorStop(0, 'rgba(255,255,255,.7)'); bg.addColorStop(1, 'rgba(255,255,255,.06)');
+      x.fillStyle = bg; x.beginPath(); x.arc(px, py, r, 0, 6.283); x.fill();
+      x.strokeStyle = 'rgba(255,255,255,.3)'; x.lineWidth = 2; x.stroke();
+    }
+
+    x.textAlign = 'center'; x.textBaseline = 'alphabetic';
+    x.font = '700 470px ' + F;
+    x.save(); x.shadowColor = 'rgba(0,0,30,.45)'; x.shadowBlur = 50; x.shadowOffsetY = 30;
+    x.fillStyle = '#c9640c'; x.fillText(big, W / 2, 500 + 38); x.restore();
+    x.fillStyle = '#ff9d1c'; x.fillText(big, W / 2, 500 + 19);
+    x.fillStyle = '#fff4df'; x.fillText(big, W / 2, 500);
+    x.font = '700 130px ' + F; x.fillStyle = '#ffd43b'; x.fillText(unit, W / 2, 650);
+    x.font = '800 58px ' + B; x.fillStyle = 'rgba(255,255,255,.9)'; x.fillText('без Gorilla Mango Coconut', W / 2, 740);
+
+    x.fillStyle = 'rgba(0,0,25,.4)'; x.beginPath(); x.ellipse(W / 2, 1610, 230, 30, 0, 0, 6.283); x.fill();
+    const im = document.querySelector('.can');
+    if (withCan && im && im.complete && im.naturalWidth) {
+      const h = 800, w = h * im.naturalWidth / im.naturalHeight;
+      x.save(); x.shadowColor = 'rgba(0,0,25,.5)'; x.shadowBlur = 40; x.shadowOffsetY = 25;
+      x.drawImage(im, (W - w) / 2, 1610 - h, w, h); x.restore();
+    } else { x.font = '520px sans-serif'; x.fillText('🦍', W / 2, 1430); }
+
+    const msg = (S.start ? [...MSG].reverse().find(m => d >= m[0])[1] : '');
+    let fs = 54; x.font = '800 ' + fs + 'px ' + B;
+    while (x.measureText(msg).width > 960 && fs > 30) { fs -= 2; x.font = '800 ' + fs + 'px ' + B; }
+    x.fillStyle = '#fff'; x.fillText(msg, W / 2, 1722);
+
+    const money = (diff / DAY * CAN_PRICE).toFixed(2);
+    x.font = '800 44px ' + B; x.fillStyle = '#ffd43b';
+    x.fillText('Серия с ' + new Date(S.start).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) + '  ·  сэкономлено ' + money + ' BYN', W / 2, 1800);
+  }
+
+  async function shareCard() {
+    const btn = $('share'), old = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Рисую картинку…';
+    try {
+      try { await Promise.all([document.fonts.load('700 100px Oswald'), document.fonts.load('800 40px Nunito')]); } catch(e) {}
+      const c = document.createElement('canvas'); c.width = 1080; c.height = 1920;
+      let blob;
+      try { drawCard(c, true); blob = await toBlobP(c); }
+      catch(e) { drawCard(c, false); blob = await toBlobP(c); } // если файл банки «грязный» (открыт с диска)
+      const d = Math.floor((Date.now() - S.start) / DAY);
+      const file = new File([blob], 'gorilla-' + d + '-days.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], text: d + ' ' + plural(d, ['день','дня','дней']) + ' без Gorilla!' }); return; }
+        catch(e) { if (e.name === 'AbortError') return; }
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = file.name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      flash('Картинка сохранена — можно выкладывать!');
+      confetti();
+    } catch(e) { flash('Не удалось создать картинку. Попробуй ещё раз.'); }
+    finally { btn.textContent = old; btn.disabled = !S.start; }
+  }
+  $('share').onclick = shareCard;
 
   $('ms').innerHTML = MS.map((m, i) => '<li class="chip" data-d="' + m[0] + '" style="--i:' + i + '"><span class="ic">' + m[1] + '</span>' + m[2] + '</li>').join('');
 
